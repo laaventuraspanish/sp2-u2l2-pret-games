@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Aventuras en el Pretérito</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&family=Nunito:wght@400;700&display=swap');
+        
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #f0f9ff;
+            overscroll-behavior-y: contain;
+            user-select: none;
+        }
+        
+        h1, h2, h3, .game-title { font-family: 'Fredoka', sans-serif; }
+
+        /* Passport Styles */
+        .passport-page {
+            background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-color: #fffbeb; 
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.1);
+        }
+        .stamp {
+            transform: rotate(-12deg);
+            opacity: 0.9;
+            mix-blend-mode: multiply;
+            border: 4px double currentColor;
+            border-radius: 50%;
+            mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100%' height='100%'><filter id='noise'><feTurbulence type='fractalNoise' baseFrequency='0.5' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23noise)' opacity='0.5'/></svg>");
+        }
+
+        /* Maze Styles */
+        #maze-canvas {
+            background-color: #0f172a;
+            border-radius: 0.5rem;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+            touch-action: none;
+        }
+
+        /* Crossword Styles */
+        .cw-cell {
+            width: 32px;
+            height: 32px;
+            border: 1px solid #94a3b8;
+            text-align: center;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 1rem;
+            background: white;
+            transition: all 0.2s;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        @media (min-width: 768px) {
+            .cw-cell { width: 40px; height: 40px; font-size: 1.3rem; }
+        }
+        .cw-cell:hover { background-color: #e0f2fe; border-color: #0ea5e9; }
+        .cw-cell.correct {
+            background-color: #dcfce7;
+            border-color: #22c55e;
+            color: #15803d;
+        }
+        .cw-cell.blocked {
+            background-color: transparent;
+            border: none;
+            visibility: hidden;
+        }
+
+        /* Memory Card Styles */
+        .memory-card { perspective: 1000px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .memory-card-inner {
+            position: relative; width: 100%; height: 100%; text-align: center;
+            transition: transform 0.4s; transform-style: preserve-3d;
+        }
+        .memory-card.flipped .memory-card-inner { transform: rotateY(180deg); }
+        .memory-card-front, .memory-card-back {
+            position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
+            border-radius: 0.5rem; display: flex; align-items: center; justify-content: center;
+            font-weight: bold; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .memory-card-front {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white; font-size: 2rem; border: 2px solid #60a5fa;
+        }
+        .memory-card-back {
+            background-color: white; color: #1e293b; border: 2px solid #3b82f6;
+            transform: rotateY(180deg); padding: 0.25rem;
+        }
+        .memory-card.matched .memory-card-inner { opacity: 0; pointer-events: none; }
+        
+        .modal-enter { animation: modalPop 0.3s ease-out forwards; }
+        @keyframes modalPop {
+            0% { transform: scale(0.9); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .shake { animation: shake 0.5s; }
+        @keyframes shake {
+            0% { transform: translateX(0); } 25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); } 75% { transform: translateX(-5px); } 100% { transform: translateX(0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-2 md:p-4 pb-20">
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen" class="fixed inset-0 bg-fuchsia-50 z-50 flex flex-col items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full text-center border-b-8 border-indigo-500">
+            <div class="bg-indigo-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i class="fa-solid fa-earth-americas text-4xl text-indigo-600"></i>
+            </div>
+            <h1 class="text-3xl font-bold text-slate-800 mb-2">¡Bienvenidos!</h1>
+            <p class="text-slate-500 mb-8">Enter your name to start your passport.</p>
+            <input type="text" id="student-name" placeholder="Tu Nombre" class="w-full text-center text-xl p-4 border-2 border-slate-200 rounded-xl mb-4 focus:border-indigo-500 focus:outline-none transition">
+            <button onclick="submitName()" class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-lg shadow-lg transition transform active:scale-95">
+                Comenzar Aventura <i class="fa-solid fa-arrow-right ml-2"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header id="app-header" class="hidden w-full max-w-5xl flex flex-col md:flex-row justify-between items-center mb-6 p-4 bg-white rounded-xl shadow-lg border-b-4 border-blue-500 gap-4">
+        <div class="flex items-center gap-3 w-full md:w-auto">
+            <div class="bg-blue-100 p-3 rounded-full">
+                <i class="fa-solid fa-plane-departure text-blue-600 text-2xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl md:text-2xl text-slate-800 font-bold">Español 2: Aventuras</h1>
+                <p class="text-slate-500 text-xs md:text-sm font-bold flex items-center gap-2">
+                    <span id="player-name-display" class="text-indigo-600">Student</span>
+                    <span>|</span>
+                    <span id="mode-display">Modo: Regulares</span>
+                    <button onclick="openSettings()" class="text-slate-400 hover:text-indigo-600"><i class="fa-solid fa-gear"></i></button>
+                </p>
+            </div>
+        </div>
+        <div class="flex gap-2 w-full md:w-auto justify-end">
+            <button onclick="showPassport()" class="flex-1 md:flex-none px-4 py-2 bg-yellow-100 text-yellow-700 rounded-lg font-bold text-sm hover:bg-yellow-200 transition shadow-sm border-b-2 border-yellow-300 active:border-b-0 active:translate-y-[2px]">
+                <i class="fa-solid fa-passport mr-1"></i> Pasaporte
+            </button>
+            <button onclick="showMenu()" class="flex-1 md:flex-none px-4 py-2 bg-slate-100 text-slate-600 rounded-lg font-bold text-sm hover:bg-slate-200 transition shadow-sm border-b-2 border-slate-300 active:border-b-0 active:translate-y-[2px]">
+                <i class="fa-solid fa-house mr-1"></i> Menú
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Menu -->
+    <div id="main-menu" class="hidden w-full max-w-5xl grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+        <!-- Game Card 1 -->
+        <div onclick="startGame('maze')" class="bg-white rounded-2xl shadow-lg overflow-hidden cursor-pointer hover:shadow-xl hover:-translate-y-1 transition border-b-8 border-indigo-500 group relative">
+            <div class="h-40 bg-indigo-100 flex items-center justify-center relative overflow-hidden">
+                <i class="fa-solid fa-gamepad text-6xl text-indigo-500 group-hover:scale-110 transition duration-300 relative z-10"></i>
+                <div class="absolute inset-0 bg-indigo-200/30 skew-x-12 -translate-x-full group-hover:translate-x-full transition duration-700"></div>
+            </div>
+            <div class="p-6">
+                <h2 class="text-xl font-bold text-slate-800 mb-2">Viaje en el Laberinto</h2>
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-1 rounded">6 Missions</span>
+                </div>
+                <p class="text-slate-600 text-sm mb-4">Fly your plane to the correct Gate! Enter the gate terminal to submit your answer.</p>
+            </div>
+        </div>
+
+        <!-- Game Card 2 -->
+        <div onclick="startGame('crossword')" class="bg-white rounded-2xl shadow-lg overflow-hidden cursor-pointer hover:shadow-xl hover:-translate-y-1 transition border-b-8 border-emerald-500 group relative">
+            <div class="h-40 bg-emerald-100 flex items-center justify-center relative overflow-hidden">
+                <i class="fa-solid fa-pencil text-6xl text-emerald-500 group-hover:scale-110 transition duration-300 relative z-10"></i>
+            </div>
+            <div class="p-6">
+                <h2 class="text-xl font-bold text-slate-800 mb-2">Crucigrama de Viaje</h2>
+                 <div class="flex items-center gap-2 mb-2">
+                    <span class="bg-emerald-100 text-emerald-700 text-xs font-bold px-2 py-1 rounded">Pop-up Quiz</span>
+                </div>
+                <p class="text-slate-600 text-sm mb-4">Click a box to see the question. Type the correct preterite form to fill the grid.</p>
+            </div>
+        </div>
+
+        <!-- Game Card 3 -->
+        <div onclick="startGame('memory')" class="bg-white rounded-2xl shadow-lg overflow-hidden cursor-pointer hover:shadow-xl hover:-translate-y-1 transition border-b-8 border-amber-500 group relative">
+            <div class="h-40 bg-amber-100 flex items-center justify-center relative overflow-hidden">
+                <i class="fa-solid fa-suitcase text-6xl text-amber-500 group-hover:scale-110 transition duration-300 relative z-10"></i>
+            </div>
+            <div class="p-6">
+                <h2 class="text-xl font-bold text-slate-800 mb-2">Maleta de Memoria</h2>
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="bg-amber-100 text-amber-700 text-xs font-bold px-2 py-1 rounded">8 Matches</span>
+                </div>
+                <p class="text-slate-600 text-sm mb-4">Flip suitcases to match subjects/infinitives with their correct conjugations.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAZE GAME CONTAINER -->
+    <div id="maze-game" class="hidden w-full max-w-4xl bg-white p-4 rounded-2xl shadow-xl border-b-8 border-indigo-600">
+        <div class="flex justify-between items-center mb-2 bg-indigo-50 p-3 rounded-lg border border-indigo-100">
+            <div class="flex items-center gap-4">
+                 <div>
+                    <span class="text-xs text-indigo-400 font-bold uppercase block">Mission</span>
+                    <span id="maze-progress" class="text-xl font-bold text-indigo-700">0/6</span>
+                 </div>
+                 <div class="h-8 w-px bg-indigo-200"></div>
+                 <div class="flex-1">
+                    <span class="text-xs text-indigo-400 font-bold uppercase block">Current Target</span>
+                    <div id="maze-mission-display" class="text-lg md:text-xl font-extrabold text-slate-800 animate-pulse">Loading...</div>
+                 </div>
+            </div>
+            <div class="flex gap-2" id="maze-lives-container"></div>
+            <div class="text-right">
+                <span class="text-xs text-slate-400 uppercase font-bold">Time</span>
+                <div id="maze-timer" class="font-mono font-bold text-slate-700">00:00</div>
+            </div>
+        </div>
+
+        <div class="relative bg-slate-900 rounded-lg p-2 flex justify-center touch-none overflow-hidden">
+            <canvas id="maze-canvas" width="600" height="400" class="max-w-full w-full h-auto cursor-pointer"></canvas>
+            
+            <!-- Pause Overlay (Shared for Loss/Win) -->
+            <div id="maze-message-overlay" class="absolute inset-0 bg-black/70 hidden flex flex-col items-center justify-center z-10 backdrop-blur-sm">
+                <!-- Content injected via JS -->
+            </div>
+
+            <!-- Mobile Controls -->
+             <div class="absolute bottom-4 right-4 md:hidden opacity-50">
+                 <div class="w-24 h-24 bg-white/10 rounded-full border-2 border-white/30 relative">
+                    <div class="absolute top-2 left-1/2 -translate-x-1/2 text-white"><i class="fa-solid fa-caret-up"></i></div>
+                    <div class="absolute bottom-2 left-1/2 -translate-x-1/2 text-white"><i class="fa-solid fa-caret-down"></i></div>
+                    <div class="absolute left-2 top-1/2 -translate-y-1/2 text-white"><i class="fa-solid fa-caret-left"></i></div>
+                    <div class="absolute right-2 top-1/2 -translate-y-1/2 text-white"><i class="fa-solid fa-caret-right"></i></div>
+                 </div>
+            </div>
+        </div>
+        <div class="mt-4 flex justify-between items-center">
+             <p class="text-slate-400 text-xs">Use Arrow Keys or Swipe. Fly INTO the Gate.</p>
+             <button onclick="startGame('maze')" class="text-indigo-600 font-bold text-sm hover:underline"><i class="fa-solid fa-rotate-right"></i> Jugar de Nuevo</button>
+        </div>
+    </div>
+
+    <!-- CROSSWORD CONTAINER -->
+    <div id="crossword-game" class="hidden w-full max-w-4xl bg-white p-4 rounded-2xl shadow-xl border-b-8 border-emerald-600">
+        <div class="flex justify-between items-center mb-4">
+             <div>
+                <h2 class="text-2xl font-bold text-slate-800">Crucigrama</h2>
+                <p class="text-slate-500 text-sm">Click a box to answer.</p>
+            </div>
+             <div class="text-right">
+                <span class="text-xs text-slate-400 uppercase font-bold">Time</span>
+                <div id="crossword-timer" class="font-mono font-bold text-slate-700">00:00</div>
+            </div>
+        </div>
+        
+        <div class="flex flex-col items-center bg-slate-100 p-4 rounded-xl overflow-hidden relative">
+            <div class="overflow-auto w-full flex justify-center pb-4">
+                 <div id="cw-grid" class="grid gap-1 shadow-lg bg-slate-800 p-2 rounded-lg border-4 border-slate-700">
+                    <!-- Grid injected by JS -->
+                </div>
+            </div>
+            
+            <!-- Question Modal (Overlay) -->
+            <div id="cw-modal" class="absolute inset-0 bg-slate-900/90 z-20 hidden flex items-center justify-center p-4">
+                <div class="bg-white w-full max-w-sm p-6 rounded-2xl text-center shadow-2xl modal-enter">
+                    <h3 class="text-slate-400 uppercase font-bold text-xs tracking-widest mb-2">Conjugate this verb</h3>
+                    <div id="cw-question-text" class="text-2xl font-extrabold text-emerald-600 mb-6">Yo / Hablar</div>
+                    <input type="text" id="cw-input" class="w-full text-center text-xl p-3 border-2 border-slate-200 rounded-lg mb-4 uppercase" placeholder="Respuesta..." autocomplete="off">
+                    <div class="flex gap-2">
+                        <button onclick="closeCWModal()" class="flex-1 py-2 bg-slate-200 text-slate-600 font-bold rounded-lg">Cancel</button>
+                        <button onclick="submitCWAnswer()" class="flex-1 py-2 bg-emerald-500 text-white font-bold rounded-lg">OK</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="mt-4 text-right">
+            <button onclick="startGame('crossword')" class="text-emerald-600 font-bold text-sm hover:underline"><i class="fa-solid fa-rotate-right"></i> Jugar de Nuevo</button>
+        </div>
+    </div>
+
+    <!-- MEMORY GAME CONTAINER -->
+    <div id="memory-game" class="hidden w-full max-w-5xl bg-white p-4 md:p-6 rounded-2xl shadow-xl border-b-8 border-amber-500">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h2 class="text-2xl font-bold text-slate-800">Maleta de Memoria</h2>
+                <p class="text-slate-500 text-sm" id="mem-subtitle">Find 8 pairs.</p>
+            </div>
+            <div class="text-right">
+                <span class="text-xs text-slate-400 uppercase font-bold">Time</span>
+                <div id="memory-timer" class="font-mono font-bold text-slate-700">00:00</div>
+            </div>
+        </div>
+        
+        <div id="memory-grid" class="grid grid-cols-4 md:grid-cols-4 gap-2 md:gap-4 max-w-4xl mx-auto">
+            <!-- Cards injected by JS -->
+        </div>
+         <div class="mt-4 text-right">
+            <button onclick="startGame('memory')" class="text-amber-600 font-bold text-sm hover:underline"><i class="fa-solid fa-rotate-right"></i> Jugar de Nuevo</button>
+        </div>
+    </div>
+
+    <!-- PASSPORT MODAL -->
+    <div id="passport-modal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden modal-enter">
+            <div class="bg-indigo-600 p-4 text-white flex justify-between items-center">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-passport text-2xl"></i>
+                    <div>
+                        <h2 class="font-bold text-lg leading-tight">Mi Pasaporte</h2>
+                        <p class="text-xs opacity-75">Registro de Aventuras</p>
+                    </div>
+                </div>
+                <button onclick="closePassport()" class="hover:bg-indigo-700 p-2 rounded-full transition">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 md:p-10 passport-page min-h-[400px]">
+                <div class="flex justify-between items-center border-b-2 border-slate-300 pb-4 mb-6">
+                    <div>
+                        <span class="block text-xs text-slate-400 uppercase">Nombre del Viajero</span>
+                        <span id="passport-name" class="font-serif text-2xl font-bold text-slate-800">Student Name</span>
+                    </div>
+                    <div class="text-right">
+                        <span class="block text-xs text-slate-400 uppercase">Fecha de Expedición</span>
+                        <span id="passport-date" class="font-mono font-bold text-slate-600">--/--/--</span>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Maze Stats -->
+                    <div class="flex items-center bg-white p-3 rounded-lg shadow-sm border border-slate-200">
+                        <div class="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center mr-4 text-indigo-600">
+                            <i class="fa-solid fa-plane"></i>
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-slate-700">Laberinto</h4>
+                            <div class="flex gap-4 text-xs text-slate-500">
+                                <span><i class="fa-regular fa-clock"></i> <span id="pass-maze-time">--:--</span></span>
+                                <span><i class="fa-solid fa-triangle-exclamation"></i> Lives Lost: <span id="pass-maze-attempts">0</span></span>
+                            </div>
+                        </div>
+                        <div id="stamp-maze" class="hidden w-16 h-16 border-2 border-indigo-500 rounded-full flex items-center justify-center stamp text-indigo-600">
+                            <span class="text-[10px] font-bold uppercase rotate-[-12deg]">Visado</span>
+                        </div>
+                    </div>
+
+                    <!-- Crossword Stats -->
+                    <div class="flex items-center bg-white p-3 rounded-lg shadow-sm border border-slate-200">
+                        <div class="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mr-4 text-emerald-600">
+                            <i class="fa-solid fa-pencil"></i>
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-slate-700">Crucigrama</h4>
+                            <div class="flex gap-4 text-xs text-slate-500">
+                                <span><i class="fa-regular fa-clock"></i> <span id="pass-cw-time">--:--</span></span>
+                                <span><i class="fa-solid fa-triangle-exclamation"></i> Mistakes: <span id="pass-cw-attempts">0</span></span>
+                            </div>
+                        </div>
+                        <div id="stamp-cw" class="hidden w-16 h-16 border-2 border-emerald-500 rounded-full flex items-center justify-center stamp text-emerald-600">
+                            <span class="text-[10px] font-bold uppercase rotate-[-12deg]">Aprobado</span>
+                        </div>
+                    </div>
+
+                    <!-- Memory Stats -->
+                    <div class="flex items-center bg-white p-3 rounded-lg shadow-sm border border-slate-200">
+                        <div class="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mr-4 text-amber-600">
+                            <i class="fa-solid fa-brain"></i>
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="font-bold text-slate-700">Memoria</h4>
+                            <div class="flex gap-4 text-xs text-slate-500">
+                                <span><i class="fa-regular fa-clock"></i> <span id="pass-mem-time">--:--</span></span>
+                                <span><i class="fa-solid fa-triangle-exclamation"></i> Flips: <span id="pass-mem-attempts">0</span></span>
+                            </div>
+                        </div>
+                        <div id="stamp-mem" class="hidden w-16 h-16 border-2 border-amber-500 rounded-full flex items-center justify-center stamp text-amber-600">
+                            <span class="text-[10px] font-bold uppercase rotate-[-12deg]">Experto</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SETTINGS MODAL -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 modal-enter">
+            <h3 class="text-2xl font-bold text-slate-800 mb-4 border-b pb-2">Configuración</h3>
+            <div class="mb-6 space-y-3">
+                <label class="flex items-center p-3 border rounded-xl cursor-pointer hover:bg-slate-50 transition">
+                    <input type="radio" name="verb-mode" value="regular" class="w-5 h-5 text-indigo-600" checked onchange="updateSettings()">
+                    <div class="ml-3">
+                        <span class="block font-bold text-slate-800">Modo Regular</span>
+                        <span class="text-xs text-slate-500">Regulars + Ver/Dar (50+ Verbs)</span>
+                    </div>
+                </label>
+                <label class="flex items-center p-3 border rounded-xl cursor-pointer hover:bg-slate-50 transition">
+                    <input type="radio" name="verb-mode" value="mixed" class="w-5 h-5 text-indigo-600" onchange="updateSettings()">
+                    <div class="ml-3">
+                        <span class="block font-bold text-slate-800">Modo Irregular</span>
+                        <span class="text-xs text-slate-500">Includes Ser, Ir, Hacer & Stem-Changers</span>
+                    </div>
+                </label>
+            </div>
+            <button onclick="closeSettings()" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl">Guardar</button>
+        </div>
+    </div>
+
+    <!-- MESSAGE MODAL -->
+    <div id="message-modal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 text-center modal-enter">
+            <div id="msg-icon" class="mb-4 text-4xl"></div>
+            <h3 id="msg-title" class="text-2xl font-bold text-slate-800 mb-2">Title</h3>
+            <p id="msg-body" class="text-slate-600 mb-6">Body</p>
+            <button onclick="closeMessageModal()" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl">Continuar</button>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA & STATE ---
+        const gameState = {
+            studentName: "",
+            mode: "regular", // or 'mixed'
+            timerInterval: null,
+            maze: { time: 0, attempts: 0, done: false },
+            crossword: { time: 0, attempts: 0, done: false },
+            memory: { time: 0, attempts: 0, done: false }
+        };
+
+        const subjects = ["Yo", "Tú", "Él", "Ella", "Usted", "Nosotros", "Ellos", "Ellas", "Ustedes"];
+        
+        // 50 Regular Verbs (Inc Ver/Dar)
+        const regularInfinitives = [
+            "hablar","comer","vivir","viajar","caminar","beber","escribir","correr","aprender","abrir",
+            "comprar","bailar","estudiar","trabajar","llevar","mirar","escuchar","tomar","usar","ayudar",
+            "buscar","llegar","pagar","jugar","tocar","sacar","empezar","comenzar","almorzar","cruzar", // car/gar/zar included in logic
+            "leer","creer","oir", // i->y
+            "subir","bajar","regresar","entrar","salir","visitar","invitar","lavar","limpiar","cocinar","preparar","llamar","nadar","vender","responder",
+            "ver", "dar" // Special regulars
+        ];
+
+        // 15 Irregulars (Stem change + Ser/Ir/Hacer)
+        const irregularConfig = [
+            { v: "ser", forms: ["fui","fuiste","fue","fuimos","fueron"] },
+            { v: "ir", forms: ["fui","fuiste","fue","fuimos","fueron"] },
+            { v: "hacer", forms: ["hice","hiciste","hizo","hicimos","hicieron"] },
+            { v: "dormir", forms: ["dormí","dormiste","durmió","dormimos","durmieron"] }, // o-u
+            { v: "pedir", forms: ["pedí","pediste","pidió","pedimos","pidieron"] }, // e-i
+            { v: "servir", forms: ["serví","serviste","sirvió","servimos","sirvieron"] },
+            { v: "repetir", forms: ["repetí","repetiste","repitió","repetimos","repitieron"] },
+            { v: "preferir", forms: ["preferí","preferiste","prefirió","preferimos","prefirieron"] },
+            { v: "vestir", forms: ["vestí","vestiste","vistió","vestimos","vistieron"] },
+            { v: "competir", forms: ["competí","competiste","compitió","competimos","compitieron"] },
+            { v: "seguir", forms: ["seguí","seguiste","siguió","seguimos","siguieron"] },
+            { v: "sentir", forms: ["sentí","sentiste","sintió","sentimos","sintieron"] },
+            { v: "mentir", forms: ["mentí","mentiste","mintió","mentimos","mintieron"] },
+            { v: "morir", forms: ["morí","moriste","murió","morimos","murieron"] },
+            { v: "divertir", forms: ["divertí","divertiste","divirtió","divertimos","divirtieron"] }
+        ];
+
+        // --- CONJUGATOR ENGINE ---
+        function conjugate(verb, subjectIndex) {
+            // Handle specific irregulars provided in config
+            const irr = irregularConfig.find(i => i.v === verb);
+            if (irr) {
+                // map subject index to 0-4 (yo, tu, el, nos, ellos)
+                const map = [0, 1, 2, 2, 2, 3, 4, 4, 4];
+                return irr.forms[map[subjectIndex]];
+            }
+
+            // Handle Ver/Dar
+            if (verb === 'ver') {
+                const map = ["vi","viste","vio","vio","vio","vimos","vieron","vieron","vieron"];
+                return map[subjectIndex];
+            }
+            if (verb === 'dar') {
+                const map = ["di","diste","dio","dio","dio","dimos","dieron","dieron","dieron"];
+                return map[subjectIndex];
+            }
+
+            // Regular endings
+            const end = verb.slice(-2);
+            const stem = verb.slice(0, -2);
+            let s = stem;
+            let ending = "";
+
+            // CAR/GAR/ZAR Check (Only Yo form - index 0)
+            if (subjectIndex === 0) {
+                if (verb.endsWith('car')) s = verb.slice(0,-3) + 'qu';
+                else if (verb.endsWith('gar')) s = verb.slice(0,-3) + 'gu';
+                else if (verb.endsWith('zar')) s = verb.slice(0,-3) + 'c';
+            }
+            // i -> y check (leer -> leyó) for 3rd person (idx 2,3,4,6,7,8)
+            const isYVerb = ['leer','creer','oir'].includes(verb);
+
+            if (end === 'ar') {
+                const map = ["é","aste","ó","ó","ó","amos","aron","aron","aron"];
+                ending = map[subjectIndex];
+            } else {
+                // ER/IR
+                if (isYVerb && (subjectIndex === 2 || subjectIndex === 3 || subjectIndex === 4 || subjectIndex === 6 || subjectIndex === 7 || subjectIndex === 8)) {
+                    // 3rd person y changes
+                    if (subjectIndex >= 6 || subjectIndex === 4) ending = "yeron"; // plural
+                    else ending = "yó"; // singular
+                } else {
+                    const map = ["í","iste","ió","ió","ió","imos","ieron","ieron","ieron"];
+                    ending = map[subjectIndex];
+                    if (isYVerb && (ending.startsWith('i') && subjectIndex !== 0)) { 
+                        // Accents on i for leer/creer/oir except yo form (leí, leíste, leímos)
+                        if (ending === 'iste') ending = 'íste';
+                        if (ending === 'imos') ending = 'ímos';
+                    }
+                }
+            }
+            return s + ending;
+        }
+
+        function getPool() {
+            let pool = [];
+            // Add Regulars
+            regularInfinitives.forEach(v => {
+                pool.push({ s: subjects[Math.floor(Math.random()*9)], v: v });
+            });
+            // Add Irregulars if mixed
+            if (gameState.mode === 'mixed') {
+                 irregularConfig.forEach(i => {
+                    pool.push({ s: subjects[Math.floor(Math.random()*9)], v: i.v });
+                 });
+            }
+            // Generate answers
+            return pool.map(item => ({
+                s: item.s,
+                v: item.v,
+                a: conjugate(item.v, subjects.indexOf(item.s))
+            }));
+        }
+
+        // --- CORE FUNCTIONS ---
+        function submitName() {
+            const n = document.getElementById('student-name').value.trim();
+            if(!n) return alert("Por favor escribe tu nombre");
+            gameState.studentName = n;
+            document.getElementById('player-name-display').innerText = n;
+            document.getElementById('passport-name').innerText = n;
+            document.getElementById('passport-date').innerText = new Date().toLocaleDateString();
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('app-header').classList.remove('hidden');
+            showMenu();
+        }
+
+        function startTimer(game) {
+            clearInterval(gameState.timerInterval);
+            let sec = 0;
+            const el = document.getElementById(game + '-timer');
+            gameState.timerInterval = setInterval(() => {
+                sec++;
+                gameState[game].time = sec;
+                const m = Math.floor(sec/60).toString().padStart(2,'0');
+                const s = (sec%60).toString().padStart(2,'0');
+                if(el) el.innerText = `${m}:${s}`;
+            }, 1000);
+        }
+
+        function stopTimer() { clearInterval(gameState.timerInterval); }
+
+        function showMenu() {
+            document.getElementById('main-menu').classList.remove('hidden');
+            ['maze','crossword','memory'].forEach(g => document.getElementById(g + '-game').classList.add('hidden'));
+            stopMazeLoop();
+            stopTimer();
+        }
+
+        function startGame(game) {
+            document.getElementById('main-menu').classList.add('hidden');
+            document.getElementById(game + '-game').classList.remove('hidden');
+            
+            // Reset Game specific stats for this run (accumulate total elsewhere if needed, but per request implies session score)
+            gameState[game].attempts = 0; // Reset attempts for new run
+            
+            startTimer(game);
+
+            if(game === 'maze') initMaze();
+            if(game === 'crossword') initCrossword();
+            if(game === 'memory') initMemory();
+        }
+
+        // --- MAZE GAME (EVEN SLOWER + PAUSE) ---
+        let mazeState = { running: false, paused: false, player: {x: 7, y: 4, dx: 0, dy: 0, moveCount: 0}, enemies: [], completed: 0, lives: 4, currentQ: null, options: [] };
+        // Map: 15x10. 1=Wall, 0=Path. 
+        const map = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,1,0,0,0,0,0,0,0,0,0,1,0,1],
+            [1,0,1,0,1,1,1,0,1,1,1,0,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,0,0,0,1,1,1,1,1,1], 
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,1,0,1,1,1,0,1,1,1,0,1,0,1],
+            [1,0,1,0,0,0,0,0,0,0,0,0,1,0,1], 
+            [1,0,1,1,1,1,1,0,1,1,1,1,1,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+        const CELL_SIZE = 40;
+        const SPEED_THRESHOLD = 18; // Increased significantly to slow down (was 12)
+
+        function initMaze() {
+            mazeState.running = true;
+            mazeState.paused = false;
+            mazeState.lives = 4;
+            mazeState.completed = 0;
+            mazeState.player = {x: 7, y: 5, dx: 0, dy: 0, moveCount: 0};
+            // Slow down enemies proportionally (higher speedInv = slower)
+            mazeState.enemies = [
+                {x: 1, y: 3, dx: 1, dy: 0, speedInv: 25, tick: 0}, 
+                {x: 13, y: 5, dx: -1, dy: 0, speedInv: 22, tick: 0}
+            ];
+            updateMazeUI();
+            generateMazeQuestion();
+            document.getElementById('maze-message-overlay').classList.add('hidden');
+            requestAnimationFrame(gameLoop);
+        }
+
+        function generateMazeQuestion() {
+            const pool = getPool();
+            const q = pool[Math.floor(Math.random() * pool.length)];
+            mazeState.currentQ = q;
+            document.getElementById('maze-mission-display').innerText = `${q.s} / ${q.v.toUpperCase()}`;
+            
+            const correct = q.a;
+            // Get distractor answers from pool
+            let wrongs = [];
+            while(wrongs.length < 3) {
+                let r = pool[Math.floor(Math.random() * pool.length)].a;
+                if (r !== correct && !wrongs.includes(r)) wrongs.push(r);
+            }
+            let options = [correct, ...wrongs].sort(() => 0.5 - Math.random());
+            
+            const positions = [{x: 1, y: 1}, {x: 13, y: 1}, {x: 13, y: 8}, {x: 1, y: 8}];
+            const labels = ["A", "B", "C", "D"];
+            mazeState.options = options.map((opt, i) => ({
+                text: opt, label: labels[i], x: positions[i].x, y: positions[i].y, isCorrect: opt === correct
+            }));
+        }
+
+        function updateMazeUI() {
+            document.getElementById('maze-progress').innerText = `${mazeState.completed}/6`;
+            document.getElementById('maze-lives-container').innerHTML = Array(mazeState.lives).fill('<i class="fa-solid fa-heart text-rose-500 text-lg"></i>').join('');
+        }
+
+        // Input
+        window.addEventListener('keydown', e => {
+            if(!mazeState.running || mazeState.paused) return;
+            if([37,38,39,40].includes(e.keyCode)) e.preventDefault();
+            if(e.key === 'ArrowUp') setDir(0, -1);
+            if(e.key === 'ArrowDown') setDir(0, 1);
+            if(e.key === 'ArrowLeft') setDir(-1, 0);
+            if(e.key === 'ArrowRight') setDir(1, 0);
+        });
+
+        function setDir(dx, dy) {
+            if(map[mazeState.player.y + dy] && map[mazeState.player.y + dy][mazeState.player.x + dx] === 0) {
+                mazeState.player.dx = dx; mazeState.player.dy = dy;
+            }
+        }
+
+        function gameLoop() {
+            if(!mazeState.running) return;
+            if(mazeState.paused) {
+                 requestAnimationFrame(gameLoop);
+                 return;
+            }
+            
+            mazeState.player.moveCount++;
+            if(mazeState.player.moveCount > SPEED_THRESHOLD) {
+                mazeState.player.moveCount = 0;
+                let nx = mazeState.player.x + mazeState.player.dx;
+                let ny = mazeState.player.y + mazeState.player.dy;
+                if(map[ny] && map[ny][nx] === 0) { mazeState.player.x = nx; mazeState.player.y = ny; checkMazeCollisions(); }
+                else { mazeState.player.dx = 0; mazeState.player.dy = 0; }
+            }
+
+            mazeState.enemies.forEach(en => {
+                en.tick++;
+                if(en.tick > en.speedInv) {
+                    en.tick = 0;
+                    let nx = en.x + en.dx; let ny = en.y + en.dy;
+                    if(map[ny] && map[ny][nx] === 0) { en.x = nx; en.y = ny; }
+                    else {
+                        const dirs = [{dx:1,dy:0}, {dx:-1,dy:0}, {dx:0,dy:1}, {dx:0,dy:-1}];
+                        const d = dirs[Math.floor(Math.random()*dirs.length)];
+                        en.dx = d.dx; en.dy = d.dy;
+                    }
+                    if(en.x === mazeState.player.x && en.y === mazeState.player.y) handleDeath();
+                }
+            });
+
+            drawMaze();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function showMazePause(title, subtext, icon, callback) {
+            mazeState.paused = true;
+            const overlay = document.getElementById('maze-message-overlay');
+            overlay.innerHTML = `
+                <div class="text-6xl mb-4 animate-bounce">${icon}</div>
+                <h3 class="text-3xl font-bold text-white mb-2">${title}</h3>
+                <p class="text-white text-xl font-bold">${subtext}</p>
+                <p class="text-white/60 text-sm mt-4">Continuando en 3 segundos...</p>
+            `;
+            overlay.classList.remove('hidden');
+            
+            setTimeout(() => {
+                mazeState.paused = false;
+                overlay.classList.add('hidden');
+                if(callback) callback();
+            }, 3000);
+        }
+
+        function checkMazeCollisions() {
+            const hit = mazeState.options.find(o => o.x === mazeState.player.x && o.y === mazeState.player.y);
+            if(hit) {
+                if(hit.isCorrect) {
+                    mazeState.completed++;
+                    updateMazeUI();
+                    showMazePause(
+                        "¡Correcto!", 
+                        "¡Bien hecho!", 
+                        "✅", 
+                        () => {
+                            if(mazeState.completed >= 6) {
+                                stopTimer(); mazeState.running = false; gameState.maze.done = true;
+                                showMessage("¡Victoria!", "Misión cumplida.", '<i class="fa-solid fa-trophy text-yellow-500"></i>', showMenu);
+                            } else {
+                                generateMazeQuestion();
+                                resetPos();
+                            }
+                        }
+                    );
+                } else {
+                    handleDeath();
+                }
+            }
+        }
+
+        function handleDeath() {
+            mazeState.lives--;
+            gameState.maze.attempts++; 
+            updateMazeUI();
+            
+            if(mazeState.lives <= 0) {
+                stopTimer(); mazeState.running = false;
+                showMessage("Game Over", "Inténtalo de nuevo.", '<i class="fa-solid fa-plane-slash text-slate-500"></i>', showMenu);
+            } else {
+                showMazePause("¡Cuidado!", "Has perdido una vida", "💔", () => resetPos());
+            }
+        }
+
+        function resetPos() { mazeState.player.x = 7; mazeState.player.y = 5; mazeState.player.dx = 0; mazeState.player.dy = 0; }
+        function stopMazeLoop() { mazeState.running = false; }
+
+        function drawMaze() {
+            const canvas = document.getElementById('maze-canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = "#0f172a"; ctx.fillRect(0,0,canvas.width,canvas.height);
+            // Walls
+            ctx.fillStyle = "#334155";
+            for(let y=0; y<10; y++) for(let x=0; x<15; x++) if(map[y][x]===1) ctx.fillRect(x*CELL_SIZE, y*CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            // Gates
+            mazeState.options.forEach(opt => {
+                ctx.fillStyle = "#1e40af"; ctx.fillRect(opt.x*CELL_SIZE, opt.y*CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                ctx.fillStyle = "#fff"; ctx.font="9px Arial"; ctx.textAlign="center"; 
+                ctx.fillText(`GATE ${opt.label}`, opt.x*CELL_SIZE+20, opt.y*CELL_SIZE+15);
+                ctx.fillText(opt.text, opt.x*CELL_SIZE+20, opt.y*CELL_SIZE+30);
+            });
+            // Player
+            ctx.save(); ctx.translate(mazeState.player.x*CELL_SIZE+20, mazeState.player.y*CELL_SIZE+20);
+            let rot = 0; if(mazeState.player.dx===1)rot=90; if(mazeState.player.dx===-1)rot=-90; if(mazeState.player.dy===1)rot=180;
+            ctx.rotate(rot*Math.PI/180); ctx.font="24px Arial"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("✈️",0,0); ctx.restore();
+            // Ghost
+            mazeState.enemies.forEach(en => ctx.fillText("👻", en.x*CELL_SIZE+20, en.y*CELL_SIZE+20));
+        }
+
+        // --- CROSSWORD LOGIC (LESS DENSITY & SPACING) ---
+        let cwState = { grid: [], words: [], activeCell: null };
+
+        function initCrossword() {
+            const pool = getPool().sort(() => 0.5 - Math.random());
+            // Try to place 10 words
+            const gridW = 12, gridH = 12;
+            let grid = Array(gridH).fill().map(() => Array(gridW).fill(null));
+            let placed = [];
+
+            // Check if cell is occupied by a word index (to track unique word crossings)
+            let metaGrid = Array(gridH).fill().map(() => Array(gridW).fill(null)); // Stores wordIndex
+
+            const canPlace = (word, x, y, dir, wordIdx) => {
+                // 1. Boundary Check
+                if (dir === 'h' && x + word.length > gridW) return false;
+                if (dir === 'v' && y + word.length > gridH) return false;
+
+                // 2. End-to-End Gap Check (Prevent run-on words)
+                if (dir === 'h') {
+                    if (x > 0 && grid[y][x - 1] !== null) return false;
+                    if (x + word.length < gridW && grid[y][x + word.length] !== null) return false;
+                } else {
+                    if (y > 0 && grid[y - 1][x] !== null) return false;
+                    if (y + word.length < gridH && grid[y + word.length][x] !== null) return false;
+                }
+                
+                let intersectedWords = new Set();
+                let hasIntersection = false;
+
+                for (let i = 0; i < word.length; i++) {
+                    let cx = dir === 'h' ? x + i : x;
+                    let cy = dir === 'h' ? y : y + i;
+                    const char = grid[cy][cx];
+                    
+                    if (char) {
+                        // Intersection Logic
+                        if (char !== word[i].toUpperCase()) return false; // Conflict
+                        hasIntersection = true;
+                        if (metaGrid[cy][cx] !== null) intersectedWords.add(metaGrid[cy][cx]);
+                    } else {
+                        // Empty Cell Logic - Ensure Isolation (No side-by-side touching)
+                        if (dir === 'h') {
+                            if (cy > 0 && grid[cy - 1][cx] !== null) return false;
+                            if (cy < gridH - 1 && grid[cy + 1][cx] !== null) return false;
+                        } else {
+                            if (cx > 0 && grid[cy][cx - 1] !== null) return false;
+                            if (cx < gridW - 1 && grid[cy][cx + 1] !== null) return false;
+                        }
+                    }
+                }
+                
+                // Constraint: Max 1 intersection to prevent dense clustering
+                if (intersectedWords.size > 1) return false; 
+
+                // Constraint: Must connect (unless first)
+                if (placed.length > 0 && !hasIntersection) return false;
+                
+                return true;
+            };
+
+            // 1. Place first word center
+            let w1 = pool.pop();
+            let startX = Math.floor((gridW - w1.a.length) / 2);
+            let startY = Math.floor(gridH / 2);
+            
+            // Place first
+            for(let i=0; i<w1.a.length; i++) {
+                grid[startY][startX+i] = w1.a[i].toUpperCase();
+                metaGrid[startY][startX+i] = 0; // Word Index 0
+            }
+            placed.push({ ...w1, x: startX, y: startY, dir: 'h', idx: 0 });
+
+            // 2. Try to place others
+            let attempts = 0;
+            let wordCount = 1;
+            while(placed.length < 8 && attempts < 500 && pool.length > 0) {
+                attempts++;
+                let candidate = pool[pool.length - 1]; // Peek
+                let placedOk = false;
+                
+                // Try to intersect with existing placed words
+                const shuffledPlaced = [...placed].sort(() => 0.5 - Math.random());
+
+                for (let p of shuffledPlaced) {
+                    if (placedOk) break;
+                    
+                    for (let i=0; i<p.a.length; i++) {
+                        let letter = p.a[i].toUpperCase();
+                        let matchIdx = candidate.a.toUpperCase().indexOf(letter);
+                        
+                        if (matchIdx !== -1) {
+                            let newDir = p.dir === 'h' ? 'v' : 'h';
+                            let newX = p.dir === 'h' ? p.x + i : p.x - matchIdx;
+                            let newY = p.dir === 'h' ? p.y - matchIdx : p.y + i;
+                            
+                            if (newX >= 0 && newY >= 0 && canPlace(candidate.a, newX, newY, newDir, wordCount)) {
+                                // Place it
+                                for(let k=0; k<candidate.a.length; k++) {
+                                    let px = newDir==='h'?newX+k:newX; let py = newDir==='h'?newY:newY+k;
+                                    grid[py][px] = candidate.a[k].toUpperCase();
+                                    metaGrid[py][px] = wordCount; // Mark grid with new word index
+                                }
+                                placed.push({ ...candidate, x: newX, y: newY, dir: newDir, idx: wordCount });
+                                pool.pop();
+                                wordCount++;
+                                placedOk = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (!placedOk) {
+                    pool.unshift(pool.pop()); // Cycle pool
+                }
+            }
+
+            cwState.grid = grid;
+            cwState.words = placed;
+            renderCrossword();
+        }
+
+        function renderCrossword() {
+            const gridEl = document.getElementById('cw-grid');
+            gridEl.innerHTML = '';
+            gridEl.style.gridTemplateColumns = `repeat(12, minmax(0, 1fr))`;
+
+            for(let y=0; y<12; y++) {
+                for(let x=0; x<12; x++) {
+                    const char = cwState.grid[y][x];
+                    const div = document.createElement('div');
+                    div.className = 'cw-cell flex items-center justify-center';
+                    if (!char) {
+                        div.classList.add('blocked');
+                    } else {
+                        // Find which word matches this cell to store data
+                        // Simplified: If clicked, find specific word object later
+                        div.dataset.x = x;
+                        div.dataset.y = y;
+                        div.dataset.val = char; // Store answer
+                        div.onclick = () => openCWQuestion(x, y);
+                    }
+                    gridEl.appendChild(div);
+                }
+            }
+        }
+
+        function openCWQuestion(x, y) {
+            // Find word at x,y
+            let hit = cwState.words.find(w => {
+                if(w.dir === 'h') return y === w.y && x >= w.x && x < w.x + w.a.length;
+                else return x === w.x && y >= w.y && y < w.y + w.a.length;
+            });
+            
+            if(hit) {
+                cwState.activeWord = hit;
+                document.getElementById('cw-question-text').innerText = `${hit.s} / ${hit.v.toUpperCase()}`;
+                document.getElementById('cw-input').value = "";
+                document.getElementById('cw-modal').classList.remove('hidden');
+                document.getElementById('cw-input').focus();
+            }
+        }
+
+        // Helper to strip accents for comparison
+        function normalizeStr(str) {
+            return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+        }
+
+        function submitCWAnswer() {
+            const val = document.getElementById('cw-input').value.trim(); // Keep original input
+            const correct = cwState.activeWord.a; // Keep original answer with accents
+            
+            // Compare normalized versions (ignores accents and case)
+            if (normalizeStr(val) === normalizeStr(correct)) {
+                // Fill with the CORRECT spelling (including accents)
+                const w = cwState.activeWord;
+                for(let i=0; i<w.a.length; i++) {
+                    let cx = w.dir==='h' ? w.x+i : w.x;
+                    let cy = w.dir==='h' ? w.y : w.y+i;
+                    const cell = document.querySelector(`.cw-cell[data-x="${cx}"][data-y="${cy}"]`);
+                    if(cell) {
+                        cell.innerText = w.a[i].toUpperCase(); // Puts accents into the grid
+                        cell.classList.add('correct');
+                    }
+                }
+                closeCWModal();
+                checkCWWin();
+            } else {
+                // Wrong
+                gameState.crossword.attempts++;
+                const box = document.querySelector('#cw-modal > div');
+                box.classList.add('shake');
+                setTimeout(() => box.classList.remove('shake'), 500);
+                document.getElementById('cw-input').value = "";
+                document.getElementById('cw-input').placeholder = "Try Again...";
+            }
+        }
+
+        function closeCWModal() { document.getElementById('cw-modal').classList.add('hidden'); }
+        
+        function checkCWWin() {
+            const total = document.querySelectorAll('.cw-cell:not(.blocked)').length;
+            const filled = document.querySelectorAll('.cw-cell.correct').length;
+            if (filled >= total) {
+                stopTimer();
+                gameState.crossword.done = true;
+                showMessage("¡Excelente!", "Crucigrama completado.", '<i class="fa-solid fa-star text-emerald-500"></i>', showMenu);
+            }
+        }
+
+        // --- MEMORY GAME ---
+        let flippedCards = []; let matchedPairs = 0;
+        function initMemory() {
+            const grid = document.getElementById('memory-grid');
+            grid.innerHTML = '';
+            flippedCards = [];
+            matchedPairs = 0;
+            const pool = getPool().sort(() => 0.5 - Math.random()).slice(0, 8);
+            let deck = [];
+            pool.forEach((item, i) => {
+                deck.push({ id: i, text: `${item.s}\n${item.v}`, type: 'q' });
+                deck.push({ id: i, text: item.a, type: 'a' });
+            });
+            deck.sort(() => 0.5 - Math.random());
+            deck.forEach(card => {
+                const el = document.createElement('div');
+                el.className = 'memory-card h-24 md:h-32 w-full';
+                el.innerHTML = `
+                    <div class="memory-card-inner">
+                        <div class="memory-card-front"><i class="fa-solid fa-question text-3xl opacity-50"></i></div>
+                        <div class="memory-card-back text-sm md:text-lg flex items-center justify-center p-2 leading-tight select-none">${card.text.replace('\n', '<br>')}</div>
+                    </div>`;
+                el.onclick = () => flipCard(el, card);
+                grid.appendChild(el);
+            });
+        }
+        function flipCard(el, card) {
+            if(flippedCards.length >= 2 || el.classList.contains('flipped') || el.classList.contains('matched')) return;
+            el.classList.add('flipped');
+            flippedCards.push({el, card});
+            if(flippedCards.length === 2) {
+                gameState.memory.attempts++; // Count attempts
+                if(flippedCards[0].card.id === flippedCards[1].card.id) {
+                     setTimeout(() => {
+                        flippedCards.forEach(c => c.el.classList.add('matched'));
+                        flippedCards = []; matchedPairs++;
+                        if(matchedPairs === 8) {
+                            stopTimer(); gameState.memory.done = true;
+                            showMessage("¡Muy bien!", "Memoria completada.", '<i class="fa-solid fa-brain text-amber-500"></i>', showMenu);
+                        }
+                     }, 500);
+                } else {
+                    setTimeout(() => { flippedCards.forEach(c => c.el.classList.remove('flipped')); flippedCards = []; }, 1000);
+                }
+            }
+        }
+
+        // --- COMMON UI ---
+        function showPassport() {
+            // Update UI
+            if(gameState.maze.done) {
+                document.querySelector('#stamp-maze').classList.remove('hidden');
+                document.getElementById('pass-maze-time').innerText = formatTime(gameState.maze.time);
+                document.getElementById('pass-maze-attempts').innerText = gameState.maze.attempts;
+            }
+            if(gameState.crossword.done) {
+                document.querySelector('#stamp-cw').classList.remove('hidden');
+                document.getElementById('pass-cw-time').innerText = formatTime(gameState.crossword.time);
+                document.getElementById('pass-cw-attempts').innerText = gameState.crossword.attempts;
+            }
+            if(gameState.memory.done) {
+                document.querySelector('#stamp-mem').classList.remove('hidden');
+                document.getElementById('pass-mem-time').innerText = formatTime(gameState.memory.time);
+                document.getElementById('pass-mem-attempts').innerText = gameState.memory.attempts;
+            }
+            document.getElementById('passport-modal').classList.remove('hidden');
+        }
+
+        function formatTime(sec) {
+            const m = Math.floor(sec/60).toString().padStart(2,'0');
+            const s = (sec%60).toString().padStart(2,'0');
+            return `${m}:${s}`;
+        }
+        
+        function closePassport() { document.getElementById('passport-modal').classList.add('hidden'); }
+        function showMessage(t, b, i, cb) { 
+            document.getElementById('msg-title').innerText=t; document.getElementById('msg-body').innerText=b; document.getElementById('msg-icon').innerHTML=i;
+            document.getElementById('message-modal').classList.remove('hidden');
+            window.tempCb = cb;
+        }
+        function closeMessageModal() { 
+            document.getElementById('message-modal').classList.add('hidden'); 
+            if(window.tempCb) window.tempCb(); 
+        }
+        function openSettings() { document.getElementById('settings-modal').classList.remove('hidden'); }
+        function closeSettings() { document.getElementById('settings-modal').classList.add('hidden'); }
+        function updateSettings() {
+             const rad = document.querySelector('input[name="verb-mode"]:checked');
+             if(rad) { gameState.mode = rad.value; document.getElementById('mode-display').innerText = rad.value==='regular'?'Modo: Regulares':'Modo: Irregular'; }
+        }
+    </script>
+</body>
+</html>
